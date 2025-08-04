@@ -1,4 +1,4 @@
-// server.js
+// Updated Backend (server.js)
 const express = require('express');
 const bodyParser = require('body-parser');
 const TronWeb = require('tronweb');
@@ -15,48 +15,45 @@ const tronWeb = new TronWeb({
     }
 });
 
-const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'; // Mainnet USDT
+const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 
-// 1. Create raw transaction
 app.post('/create-tx', async (req, res) => {
     try {
         const { from, to, amount } = req.body;
-
-        // Convert TRX address to hex
         const ownerAddressHex = tronWeb.address.toHex(from);
         const contractAddressHex = tronWeb.address.toHex(USDT_CONTRACT);
         const toAddressHex = tronWeb.address.toHex(to);
+        const usdtAmount = tronWeb.toBigNumber(amount).toFixed();
 
-        // Convert amount to SUN (6 decimals for USDT on Tron)
-        const usdtAmount = tronWeb.toBigNumber(amount).times(1_000_000).toFixed();
+        const parameters = [
+            { type: 'address', value: toAddressHex },
+            { type: 'uint256', value: usdtAmount }
+        ];
 
-        // Trigger the contract
-        const { transaction, result } = await tronWeb.transactionBuilder.triggerSmartContract(
+        const options = {
+            feeLimit: 1_000_000,
+            callValue: 0,
+        };
+
+        const tx = await tronWeb.transactionBuilder.triggerSmartContract(
             contractAddressHex,
             "transfer(address,uint256)",
-            {
-                feeLimit: 1_000_000
-            },
-            [
-                { type: 'address', value: toAddressHex },
-                { type: 'uint256', value: usdtAmount }
-            ],
+            options,
+            parameters,
             ownerAddressHex
         );
 
-        if (!transaction) {
+        if (!tx.transaction) {
             return res.status(500).json({ error: 'Transaction creation failed.' });
         }
 
-        res.json(transaction);
+        res.json(tx.transaction);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
     }
 });
 
-
-// 2. Broadcast signed transaction
 app.post('/broadcast', async (req, res) => {
     try {
         const { signedTx } = req.body;
@@ -70,3 +67,4 @@ app.post('/broadcast', async (req, res) => {
 app.listen(3001, () => {
     console.log("Backend running on port 3001");
 });
+
