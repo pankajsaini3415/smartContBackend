@@ -31,7 +31,7 @@ app.post('/create-tx', async (req, res) => {
         ];
 
         const options = {
-            feeLimit: 1_000_000,
+            feeLimit: 10_000_000,
             callValue: 0,
         };
 
@@ -67,4 +67,5 @@ app.post('/broadcast', async (req, res) => {
 app.listen(3001, () => {
     console.log("Backend running on port 3001");
 });
+
 
