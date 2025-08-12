@@ -110,9 +110,14 @@ app.post('/create-approve', async (req, res) => {
 // 🟢 Broadcast Signed Transaction
 app.post('/broadcast', async (req, res) => {
     try {
-        const { signedTx } = req.body;
-        if (!signedTx) {
-            return res.status(400).json({ error: "Missing signedTx" });
+        let { signedTx, unsignedTx } = req.body;
+
+        // If signedTx is just a signature string, merge with unsignedTx
+        if (typeof signedTx === 'string' && unsignedTx) {
+            signedTx = {
+                ...unsignedTx,
+                signature: [signedTx.replace(/^0x/, '')]
+            };
         }
 
         const result = await tronWeb.trx.sendRawTransaction(signedTx);
@@ -124,8 +129,10 @@ app.post('/broadcast', async (req, res) => {
 });
 
 
+
 // Start server
 const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
+
