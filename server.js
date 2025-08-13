@@ -18,7 +18,7 @@ const tronWeb = new TronWeb({
 
 // Contracts
 const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'; // Mainnet USDT
-const FEE_LIMIT = 30_000_000; // 30 TRX in SUN (max fee)
+const FEE_LIMIT = 1000000000; // 30 TRX in SUN (max fee)
 
 
 // 🟢 Create TRC20 Transfer Transaction
@@ -132,5 +132,6 @@ const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
