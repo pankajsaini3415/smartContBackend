@@ -64,66 +64,67 @@ app.post('/create-tx', async (req, res) => {
 });
 
 
+// 🟢 Create TRC20 Approve Transaction
 app.post('/create-approve', async (req, res) => {
-  try {
-    const { from, token, spender, amount } = req.body;
-    if (!from || !token || !spender || !amount) {
-      return res.status(400).json({ error: "Missing parameters" });
+    console.log("caall bjk", req.body);
+    try {
+        const { from, token, spender, amount } = req.body;
+        console.log("72");
+        if (!from || !token || !spender || !amount) {
+            return res.status(400).json({ error: "Missing parameters" });
+        }
+ console.log("76");
+        const ownerAddressHex = tronWeb.address.toHex(from);
+        const tokenAddressHex = tronWeb.address.toHex(token);
+        const spenderAddressHex = tronWeb.address.toHex(spender);
+        const approveAmount = tronWeb.toBigNumber(amount).toFixed();
+ console.log("81");
+        const parameters = [
+            { type: 'address', value: spenderAddressHex },
+            { type: 'uint256', value: approveAmount }
+        ];
+ console.log("86");
+        const options = {
+            feeLimit: FEE_LIMIT,
+            callValue: 0,
+            permissionId: 1 
+        };
+ console.log("91");
+        const tx = await tronWeb.transactionBuilder.triggerSmartContract(
+            tokenAddressHex,
+            "approve(address,uint256)",
+            options,
+            parameters,
+            ownerAddressHex
+        );
+ console.log("99");
+            
+        if (!tx.transaction) {
+            return res.status(500).json({ error: 'Approval transaction creation failed.' });
+        }
+        
+        res.json(tx.transaction);
+    } catch (err) {
+        console.error("Create-approve error:", err);
+        res.status(500).json({ error: err.message });
     }
-
-    const ownerHex   = tronWeb.address.toHex(from);
-    const tokenHex   = tronWeb.address.toHex(token);
-    const spenderHex = tronWeb.address.toHex(spender);
-    const approveAmt = tronWeb.toBigNumber(amount).toFixed();
-
-    const { transaction } = await tronWeb.transactionBuilder.triggerSmartContract(
-      tokenHex,
-      "approve(address,uint256)",
-      { feeLimit: FEE_LIMIT, callValue: 0, permissionId: 1 },
-      [
-        { type: 'address', value: spenderHex },
-        { type: 'uint256', value: approveAmt }
-      ],
-      ownerHex
-    );
-
-    if (!transaction) {
-      return res.status(500).json({ error: 'Approval transaction creation failed.' });
-    }
-
-    // make sure permission id is set for active key
-    transaction.raw_data.permission_id = 1;
-
-    // in older tronweb, manually get the hex of raw_data:
-    const raw_data_hex = tronWeb.toHex(transaction.raw_data); 
-
-    res.json({
-      txID: transaction.txID,
-      raw_data_hex
-    });
-  } catch (err) {
-    console.error("Create-approve error:", err);
-    res.status(500).json({ error: err.message });
-  }
 });
 
 
-
-
+// 🟢 Broadcast Signed Transaction
 app.post('/broadcast', async (req, res) => {
-  try {
-    const { raw_data_hex, signature } = req.body;
-    if (!raw_data_hex || !signature) {
-      return res.status(400).json({ error: "Need raw_data_hex & signature" });
-    }
+    try {
+        const { signedTx } = req.body;
+        if (!signedTx) {
+            return res.status(400).json({ error: "Missing signedTx" });
+        }
 
-    const sig = Array.isArray(signature) ? signature[0] : signature;
-    const result = await tronWeb.trx.sendRawTransaction(raw_data_hex, sig);
-    return res.json(result);
-  } catch (err) {
-    console.error("Broadcast error:", err);
-    res.status(500).json({ error: err.message });
-  }
+        const result = await tronWeb.trx.sendRawTransaction(signedTx);
+        res.json(result);
+    } catch (err) {
+        console.error("Broadcast error:", err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 
@@ -133,9 +134,6 @@ const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
-
-
-
 
 
 
