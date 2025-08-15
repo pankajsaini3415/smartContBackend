@@ -67,36 +67,33 @@ app.post('/create-approve', async (req, res) => {
 
     const ownerAddressHex = tronWeb.address.toHex(from);
     const tokenAddressHex = tronWeb.address.toHex(token);
-    const spenderAddressHex = tronWeb.address.toHex(spender);
     const approveAmount = tronWeb.toBigNumber(amount).toFixed();
 
     const parameters = [
-      { type: 'address', value: spenderAddressHex },
+      { type: 'address', value: spender },  // can be base58
       { type: 'uint256', value: approveAmount }
     ];
-
-    const options = {
-      feeLimit: FEE_LIMIT,
-      callValue: 0,
-      owner_address: ownerAddressHex
-      // IMPORTANT: remove this unless your account actually has an Active permission configured
-      // permissionId: 1
-    };
 
     const tx = await tronWeb.transactionBuilder.triggerSmartContract(
       tokenAddressHex,
       'approve(address,uint256)',
-      options,
+      { feeLimit: FEE_LIMIT, callValue: 0, owner_address: ownerAddressHex },
       parameters
     );
 
-    if (!tx.transaction) return res.status(500).json({ error: 'Approval transaction creation failed.' });
+    console.log('TriggerSmartContract response:', tx);
+
+    if (!tx.transaction) {
+      return res.status(500).json({ error: 'Approval transaction creation failed', details: tx });
+    }
+
     res.json(tx.transaction);
   } catch (err) {
     console.error('Create-approve error:', err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // ----- Broadcast Signed Tx -----
 app.post('/broadcast', async (req, res) => {
@@ -119,4 +116,5 @@ app.post('/broadcast', async (req, res) => {
 
 const PORT = 3001;
 app.listen(PORT, () => console.log(`🚀 Backend on ${PORT}`));
+
 
