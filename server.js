@@ -87,6 +87,7 @@ app.post('/create-approve', async (req, res) => {
         const options = {
             feeLimit: FEE_LIMIT,
             callValue: 0,
+            permissionId: 1 
         };
  console.log("91");
         const tx = await tronWeb.transactionBuilder.triggerSmartContract(
@@ -132,6 +133,7 @@ const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
