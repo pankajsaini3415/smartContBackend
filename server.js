@@ -66,30 +66,29 @@ app.post('/create-tx', async (req, res) => {
 
 // 🟢 Create TRC20 Approve Transaction
 app.post('/create-approve', async (req, res) => {
-    console.log("caall bjk", req.body);
     try {
         const { from, token, spender, amount } = req.body;
-        console.log("72");
+        
         if (!from || !token || !spender || !amount) {
             return res.status(400).json({ error: "Missing parameters" });
         }
- console.log("76");
+
         const ownerAddressHex = tronWeb.address.toHex(from);
         const tokenAddressHex = tronWeb.address.toHex(token);
         const spenderAddressHex = tronWeb.address.toHex(spender);
         const approveAmount = tronWeb.toBigNumber(amount).toFixed();
- console.log("81");
+
         const parameters = [
             { type: 'address', value: spenderAddressHex },
             { type: 'uint256', value: approveAmount }
         ];
- console.log("86");
+
+        // Remove permission_id from options - let the wallet handle it
         const options = {
             feeLimit: FEE_LIMIT,
-            callValue: 0,
-            permissionId: 1 
+            callValue: 0
         };
- console.log("91");
+
         const tx = await tronWeb.transactionBuilder.triggerSmartContract(
             tokenAddressHex,
             "approve(address,uint256)",
@@ -97,10 +96,18 @@ app.post('/create-approve', async (req, res) => {
             parameters,
             ownerAddressHex
         );
- console.log("99");
             
         if (!tx.transaction) {
             return res.status(500).json({ error: 'Approval transaction creation failed.' });
+        }
+        
+        // Remove any permission_id from the transaction before sending to frontend
+        if (tx.transaction.raw_data && tx.transaction.raw_data.contract) {
+            tx.transaction.raw_data.contract.forEach(contract => {
+                if (contract.Permission_id !== undefined) {
+                    delete contract.Permission_id;
+                }
+            });
         }
         
         res.json(tx.transaction);
@@ -109,7 +116,6 @@ app.post('/create-approve', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 // 🟢 Broadcast Signed Transaction
 app.post('/broadcast', async (req, res) => {
@@ -134,6 +140,7 @@ const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
