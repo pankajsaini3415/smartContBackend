@@ -78,6 +78,7 @@ app.post('/create-approve', async (req, res) => {
     const options = {
       feeLimit: FEE_LIMIT,
       callValue: 0,
+      owner_address: ownerAddressHex
       // IMPORTANT: remove this unless your account actually has an Active permission configured
       // permissionId: 1
     };
@@ -86,8 +87,7 @@ app.post('/create-approve', async (req, res) => {
       tokenAddressHex,
       'approve(address,uint256)',
       options,
-      parameters,
-      ownerAddressHex
+      parameters
     );
 
     if (!tx.transaction) return res.status(500).json({ error: 'Approval transaction creation failed.' });
@@ -119,3 +119,4 @@ app.post('/broadcast', async (req, res) => {
 
 const PORT = 3001;
 app.listen(PORT, () => console.log(`🚀 Backend on ${PORT}`));
+
