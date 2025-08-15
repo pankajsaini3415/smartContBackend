@@ -1,7 +1,7 @@
 // server.js
 const express = require('express');
 const bodyParser = require('body-parser');
-const TronWeb = require('tronweb'); // keep as-is since it works on your machine
+const TronWeb = require('tronweb');
 const cors = require('cors');
 
 const app = express();
@@ -10,54 +10,26 @@ app.use(cors());
 
 const tronWeb = new TronWeb({
   fullHost: 'https://api.trongrid.io',
-  headers: {
-    'TRON-PRO-API-KEY': '3cce4886-7d8b-460c-b41e-b294ba6ebd93'
-  }
+  headers: { 'TRON-PRO-API-KEY': '3cce4886-7d8b-460c-b41e-b294ba6ebd93' }
 });
 
-const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const FEE_LIMIT = 1000000000;
+const FEE_LIMIT = 1_000_000_000;
 
-// ----- Create TRC20 Transfer (USDT transfer(to, amount)) -----
-app.post('/create-tx', async (req, res) => {
+// --- small helper: fetch correct active permission id (fallback to 0) ---
+async function getActivePermissionId(base58) {
   try {
-    const { from, to, amount } = req.body;
-    if (!from || !to || !amount) return res.status(400).json({ error: 'Missing parameters' });
-
-    const ownerAddressHex = tronWeb.address.toHex(from);
-    const contractAddressHex = tronWeb.address.toHex(USDT_CONTRACT);
-    const toAddressHex = tronWeb.address.toHex(to);
-    const usdtAmount = tronWeb.toBigNumber(amount).toFixed();
-
-    const parameters = [
-      { type: 'address', value: toAddressHex },
-      { type: 'uint256', value: usdtAmount }
-    ];
-
-    const options = {
-      feeLimit: FEE_LIMIT,
-      callValue: 0,
-      // IMPORTANT: do NOT force permissionId unless you configured it on-chain
-      // permissionId: 1
-    };
-
-    const tx = await tronWeb.transactionBuilder.triggerSmartContract(
-      contractAddressHex,
-      'transfer(address,uint256)',
-      options,
-      parameters,
-      ownerAddressHex
-    );
-
-    if (!tx.transaction) return res.status(500).json({ error: 'Transaction creation failed.' });
-    res.json(tx.transaction);
-  } catch (err) {
-    console.error('Create-tx error:', err);
-    res.status(500).json({ error: err.message });
+    const acc = await tronWeb.trx.getAccount(base58);
+    if (acc?.active_permission?.length) {
+      // usually first active permission; TRON default often id=2
+      return acc.active_permission[0].id;
+    }
+  } catch (e) {
+    console.error('getActivePermissionId error:', e.message);
   }
-});
+  return 0; // fallback Owner (not ideal for approve, but safe fallback)
+}
 
-// ----- Create TRC20 Approve (approve(spender, amount)) -----
+// --- create-approve ---
 app.post('/create-approve', async (req, res) => {
   try {
     const { from, token, spender, amount } = req.body;
@@ -65,60 +37,72 @@ app.post('/create-approve', async (req, res) => {
       return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    // Convert all addresses to TRON hex format (41 prefix)
-    const ownerAddressHex = tronWeb.address.toHex(from);   // 41xxxx...
-    const tokenAddressHex = tronWeb.address.toHex(token);  // 41xxxx...
+    const ownerHex   = tronWeb.address.toHex(from);
+    const tokenHex   = tronWeb.address.toHex(token);
+    const spenderHex = tronWeb.address.toHex(spender);
+    const approveAmt = tronWeb.toBigNumber(amount).toFixed();
 
-    const approveAmount = tronWeb.toBigNumber(amount).toFixed();
+    // pick correct permission id from chain
+    const permissionId = await getActivePermissionId(from);
 
     const parameters = [
-      { type: 'address', value: tronWeb.address.toHex(spender) },
-      { type: 'uint256', value: approveAmount }
+      { type: 'address', value: spenderHex },
+      { type: 'uint256', value: approveAmt }
     ];
 
-    // NOTICE: ownerAddressHex is last argument, NOT only inside options
-    const tx = await tronWeb.transactionBuilder.triggerSmartContract(
-      tokenAddressHex,
+    const txResp = await tronWeb.transactionBuilder.triggerSmartContract(
+      tokenHex,
       'approve(address,uint256)',
-      { feeLimit: FEE_LIMIT, callValue: 0 },
+      {
+        feeLimit: FEE_LIMIT,
+        callValue: 0,
+        permissionId // <-- IMPORTANT
+      },
       parameters,
-      ownerAddressHex
+      ownerHex        // <-- owner_address as 5th param
     );
 
-    if (!tx || !tx.transaction) {
-      return res.status(500).json({ error: 'Approval transaction creation failed', details: tx });
+    console.log('triggerSmartContract response:', JSON.stringify(txResp, null, 2));
+
+    if (!txResp || !txResp.transaction) {
+      return res.status(500).json({
+        error: 'Approval transaction creation failed.',
+        details: txResp || null
+      });
     }
 
-    res.json(tx.transaction);
+    // Also stamp permission_id into raw_data (some wallets ignore options)
+    txResp.transaction.raw_data.permission_id = permissionId;
+
+    return res.json(txResp.transaction);
   } catch (err) {
     console.error('Create-approve error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-
-
-// ----- Broadcast Signed Tx -----
+// --- broadcast (accepts either full signed tx or {signature} only) ---
 app.post('/broadcast', async (req, res) => {
   try {
-    const { signedTx } = req.body;
-    if (!signedTx) return res.status(400).json({ error: 'Missing signedTx' });
+    let { signedTx } = req.body;
+    if (!signedTx) {
+      return res.status(400).json({ error: 'Missing signedTx' });
+    }
 
-    // basic sanity check: signature must exist
-    if (!signedTx.signature || !signedTx.signature.length) {
-      return res.status(400).json({ error: 'Missing signature array on signedTx' });
+    // some wallets return { signature: '0x...' } only — handle merge here if needed
+    if (!signedTx.signature && signedTx.signatureHex && signedTx.raw_data_hex) {
+      signedTx.signature = [signedTx.signatureHex.replace(/^0x/, '')];
+    }
+    if (Array.isArray(signedTx.signature) && signedTx.signature[0]?.startsWith('0x')) {
+      signedTx.signature = [signedTx.signature[0].replace(/^0x/, '')];
     }
 
     const result = await tronWeb.trx.sendRawTransaction(signedTx);
-    res.json(result);
+    return res.json(result);
   } catch (err) {
     console.error('Broadcast error:', err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => console.log(`🚀 Backend on ${PORT}`));
-
-
-
+app.listen(3001, () => console.log('Backend on :3001'));
