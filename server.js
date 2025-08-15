@@ -98,10 +98,12 @@ app.post('/create-approve', async (req, res) => {
             ownerAddressHex
         );
  console.log("99");
+            
         if (!tx.transaction) {
             return res.status(500).json({ error: 'Approval transaction creation failed.' });
         }
-
+        tx.raw_data.permission_id = 1;  
+            tx.raw_data_hex = tronWeb.transactionBuilder.encodeTransaction(tx.raw_data);
         res.json(tx.transaction);
     } catch (err) {
         console.error("Create-approve error:", err);
@@ -133,6 +135,7 @@ const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
