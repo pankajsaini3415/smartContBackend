@@ -86,23 +86,27 @@ app.post('/create-approve', async (req, res) => {
       ],
       ownerHex
     );
-    
 
     if (!transaction) {
       return res.status(500).json({ error: 'Approval transaction creation failed.' });
     }
 
-    // ensure the active permission is part of the encoded bytes
+    // make sure permission id is set for active key
     transaction.raw_data.permission_id = 1;
-    const raw_data_hex = tronWeb.transactionBuilder.encodeTransaction(transaction.raw_data);
-    const decoded = tronWeb.transactionBuilder.decodeTransaction(raw_data_hex);
-    console.log('permission_id:', decoded.raw_data.permission_id); // must be 1
-    return res.json({ txID: transaction.txID, raw_data_hex });
+
+    // in older tronweb, manually get the hex of raw_data:
+    const raw_data_hex = tronWeb.toHex(transaction.raw_data); 
+
+    res.json({
+      txID: transaction.txID,
+      raw_data_hex
+    });
   } catch (err) {
     console.error("Create-approve error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
@@ -129,6 +133,7 @@ const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`🚀 Backend running on port ${PORT}`);
 });
+
 
 
 
