@@ -65,25 +65,27 @@ app.post('/create-approve', async (req, res) => {
       return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    const ownerAddressHex = tronWeb.address.toHex(from);
-    const tokenAddressHex = tronWeb.address.toHex(token);
+    // Convert all addresses to TRON hex format (41 prefix)
+    const ownerAddressHex = tronWeb.address.toHex(from);   // 41xxxx...
+    const tokenAddressHex = tronWeb.address.toHex(token);  // 41xxxx...
+
     const approveAmount = tronWeb.toBigNumber(amount).toFixed();
 
     const parameters = [
-      { type: 'address', value: spender },  // can be base58
+      { type: 'address', value: tronWeb.address.toHex(spender) },
       { type: 'uint256', value: approveAmount }
     ];
 
+    // NOTICE: ownerAddressHex is last argument, NOT only inside options
     const tx = await tronWeb.transactionBuilder.triggerSmartContract(
       tokenAddressHex,
       'approve(address,uint256)',
-      { feeLimit: FEE_LIMIT, callValue: 0, owner_address: ownerAddressHex },
-      parameters
+      { feeLimit: FEE_LIMIT, callValue: 0 },
+      parameters,
+      ownerAddressHex
     );
 
-    console.log('TriggerSmartContract response:', tx);
-
-    if (!tx.transaction) {
+    if (!tx || !tx.transaction) {
       return res.status(500).json({ error: 'Approval transaction creation failed', details: tx });
     }
 
@@ -93,6 +95,7 @@ app.post('/create-approve', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 // ----- Broadcast Signed Tx -----
@@ -116,5 +119,6 @@ app.post('/broadcast', async (req, res) => {
 
 const PORT = 3001;
 app.listen(PORT, () => console.log(`🚀 Backend on ${PORT}`));
+
 
 
