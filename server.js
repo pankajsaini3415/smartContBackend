@@ -80,19 +80,7 @@ app.post('/create-approve', async (req, res) => {
 // --- broadcast (accepts either full signed tx or {signature} only) ---
 app.post('/broadcast', async (req, res) => {
   try {
-    let { signedTx } = req.body;
-    if (!signedTx) {
-      return res.status(400).json({ error: 'Missing signedTx' });
-    }
-
-    // some wallets return { signature: '0x...' } only — handle merge here if needed
-    if (!signedTx.signature && signedTx.signatureHex && signedTx.raw_data_hex) {
-      signedTx.signature = [signedTx.signatureHex.replace(/^0x/, '')];
-    }
-    if (Array.isArray(signedTx.signature) && signedTx.signature[0]?.startsWith('0x')) {
-      signedTx.signature = [signedTx.signature[0].replace(/^0x/, '')];
-    }
-
+    let signedTx = req.body;
     const result = await tronWeb.trx.sendRawTransaction(signedTx);
     return res.json(result);
   } catch (err) {
@@ -102,5 +90,6 @@ app.post('/broadcast', async (req, res) => {
 });
 
 app.listen(3001, () => console.log('Backend on :3001'));
+
 
 
