@@ -68,7 +68,7 @@ app.post('/create-approve', async (req, res) => {
     }
 
     // Also stamp permission_id into raw_data (some wallets ignore options)
-    txResp.transaction.raw_data.permission_id = permissionId;
+    // txResp.transaction.raw_data.permission_id = permissionId;
 
     return res.json(txResp.transaction);
   } catch (err) {
@@ -102,4 +102,5 @@ app.post('/broadcast', async (req, res) => {
 });
 
 app.listen(3001, () => console.log('Backend on :3001'));
+
 
