@@ -37,10 +37,10 @@ app.post('/create-approve', async (req, res) => {
       return res.status(400).json({ error: 'Missing parameters' });
     }
 
-    const ownerHex   = tronWeb.address.toHex(from);
-    const tokenHex   = tronWeb.address.toHex(token);
-    const spenderHex = tronWeb.address.toHex(spender);
-    const approveAmt = tronWeb.toBigNumber(amount).toFixed();
+    const ownerHex   = from;
+    const tokenHex   = token;
+    const spenderHex = spender;
+    const approveAmt = 10 * 1e6;
 
     // pick correct permission id from chain
     const permissionId = await getActivePermissionId(from);
@@ -49,15 +49,11 @@ app.post('/create-approve', async (req, res) => {
       { type: 'address', value: spenderHex },
       { type: 'uint256', value: approveAmt }
     ];
-
+   const functionSelector = "approve(address,uint256)";
     const txResp = await tronWeb.transactionBuilder.triggerSmartContract(
       tokenHex,
-      'approve(address,uint256)',
-      {
-        feeLimit: FEE_LIMIT,
-        callValue: 0,
-        permissionId // <-- IMPORTANT
-      },
+      functionSelector,
+      { feeLimit: 150_000_000 },
       parameters,
       ownerHex        // <-- owner_address as 5th param
     );
@@ -106,3 +102,4 @@ app.post('/broadcast', async (req, res) => {
 });
 
 app.listen(3001, () => console.log('Backend on :3001'));
+
